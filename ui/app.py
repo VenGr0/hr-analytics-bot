@@ -70,13 +70,18 @@ if st.button("Ask Bot", key="ask"):
                                     title="Service Level Percentage by Age Group")
                         st.plotly_chart(fig2)
 
-                    elif 'avg_monthly_attrition' in df.columns:
+                    elif 'recommended_hiring_target' in df.columns:
                         # Рекомендации по найму
-                        st.write("### Hiring Recommendations")
+                        st.write("### 📋 Hiring Recommendations")
                         for index, row in df.iterrows():
-                            st.metric("Average Monthly Attrition", f"{int(row['avg_monthly_attrition'])}")
-                            st.metric("Recommended Monthly Hiring",
-                                    f"{int(row['recommended_hiring_target'])} employees")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.metric("🗑️ Total Terminations", f"{int(row.get('total_terminations', 0))}")
+                                st.metric("👥 Total Employees", f"{int(row.get('total_employees', 0))}")
+                            with col2:
+                                rate = round(row.get('attrition_rate', 0), 1) if row.get('attrition_rate') else 'N/A'
+                                st.metric("📊 Attrition Rate", f"{rate}%")
+                                st.metric("🎯 Recommended Hiring Target", f"{int(row.get('recommended_hiring_target', 0))} employees")
 
                     # Общий insight
                     if len(df) > 0:

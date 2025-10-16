@@ -42,25 +42,21 @@ async def nlquery(q: NLQuery):
 # Расширенный перевод NL->SQL
 def nl_to_sql_stub(text: str) -> str:
     text_lower = text.lower()
+    import re
 
     # 1. Текучесть в отделе N за прошлый год
     if ('текуч' in text_lower or 'текучесть' in text_lower) and ('отдел' in text_lower or 'департамент' in text_lower):
         # Выделяем название отдела
-        import re
         department_match = re.search(r'отдел[e]? (\w+)', text_lower)
         if department_match:
             dept = department_match.group(1).title()
             return f"""
-SELECT
-    strftime('%Y', COALESCE(termination_date, DATE '9999-12-31')) AS year,
-    COUNT(*) FILTER (WHERE termination_date IS NOT NULL AND department = '{dept}') AS terminations,
-    COUNT(*) FILTER (WHERE department = '{dept}') AS total_employees,
-    ROUND(100.0 * terminations / NULLIF(total_employees, 0), 2) AS attrition_rate
+SELECT '{dept}' AS department,
+    COUNT(*) FILTER (WHERE termination_date IS NOT NULL) AS total_terminations,
+    COUNT(*) AS total_employees,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE termination_date IS NOT NULL) / NULLIF(COUNT(*), 0), 2) AS attrition_rate
 FROM hr_data
-WHERE strftime('%Y', hire_date) <= '2024'
-GROUP BY year
-ORDER BY year DESC
-LIMIT 1;
+WHERE department = '{dept}';
 """
 
     # 2. Доля категорий людей уволившихся по возрасту и сервису
@@ -93,35 +89,27 @@ ORDER BY service_percentage DESC;
         if department_match:
             dept = department_match.group(1).title()
             return f"""
-WITH monthly_attrition AS (
-    SELECT
-        strftime('%Y-%m', termination_date) AS ym,
-        COUNT(*) AS monthly_terminations
-    FROM hr_data
-    WHERE termination_date IS NOT NULL
-      AND department = '{dept}'
-      AND strftime('%Y', termination_date) >= strftime('%Y', 'now', '-1 year')
-    GROUP BY ym
-)
 SELECT
-    ROUND(AVG(monthly_terminations), 0) AS avg_monthly_attrition,
-    ROUND(AVG(monthly_terminations) * 1.1, 0) AS recommended_hiring_target
-FROM monthly_attrition;
+    '{dept}' AS department,
+    COUNT(*) FILTER (WHERE termination_date IS NOT NULL) AS total_terminations,
+    COUNT(*) AS total_employees,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE termination_date IS NOT NULL) / NULLIF(COUNT(*), 0), 1) AS attrition_rate,
+    CEIL(COUNT(*) FILTER (WHERE termination_date IS NOT NULL) * 1.1) AS recommended_hiring_target,
+    ROUND(AVG(CASE WHEN termination_date IS NOT NULL THEN service ELSE NULL END), 1) AS avg_tenure_terminated
+FROM hr_data
+WHERE department = '{dept}';
 """
 
     # 4. Общая текучесть за прошлый год
     elif ('текуч' in text_lower or 'текучесть' in text_lower) and ('прошл' in text_lower or 'год' in text_lower):
         return """
 SELECT
-    strftime('%Y', COALESCE(termination_date, DATE '9999-12-31')) AS year,
-    COUNT(*) FILTER (WHERE termination_date IS NOT NULL) AS terminations,
-    COUNT(*) FILTER (WHERE termination_date IS NULL OR strftime('%Y', termination_date) = '2024') AS total_employees,
-    ROUND(100.0 * terminations / NULLIF(total_employees, 0), 2) AS attrition_rate
+    2024 AS year,
+    COUNT(*) FILTER (WHERE termination_date IS NOT NULL) AS total_terminations,
+    COUNT(*) AS total_employees,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE termination_date IS NOT NULL) / NULLIF(COUNT(*), 0), 2) AS attrition_rate
 FROM hr_data
-WHERE strftime('%Y', hire_date) <= '2024'
-GROUP BY year
-ORDER BY year DESC
-LIMIT 1;
+WHERE strftime('%Y', hire_date) <= '2024';
 """
 
     # Default fallback
