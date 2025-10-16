@@ -44,22 +44,45 @@ def nl_to_sql_stub(text: str) -> str:
     text_lower = text.lower()
     import re
 
-    # 1. Текучесть в отделе N за прошлый год
-    if ('текуч' in text_lower or 'текучесть' in text_lower) and ('отдел' in text_lower or 'департамент' in text_lower):
-        # Выделяем название отдела
-        department_match = re.search(r'отдел[e]? (\w+)', text_lower)
-        if department_match:
-            dept = department_match.group(1).title()
-            return f"""
-SELECT '{dept}' AS department,
-    COUNT(*) FILTER (WHERE termination_date IS NOT NULL) AS total_terminations,
-    COUNT(*) AS total_employees,
-    ROUND(100.0 * COUNT(*) FILTER (WHERE termination_date IS NOT NULL) / NULLIF(COUNT(*), 0), 2) AS attrition_rate
+    print("DEBUG:", f"text_lower='{text_lower}'")
+    print("DEBUG:", f"'сколько' in text_lower:", 'сколько' in text_lower)
+    print("DEBUG:", f"'нанимать' in text_lower:", 'нанимать' in text_lower)
+    print("DEBUG:", f"'отдел' in text_lower:", 'отдел' in text_lower)
+
+    # Приоритет 1: Рекомендации по найму для конкретного отдела
+    condition = 'сколько' in text_lower and 'нанимать' in text_lower and 'отдел' in text_lower
+    print("DEBUG:", f"Overall condition:", condition)
+
+    if condition:
+            # Выделяем название отдела с case-insensitive поиском
+            department_match = re.search(r'отдел[e]?\s+(\w+)', text_lower)
+            if department_match:
+                dept_input = department_match.group(1).lower()
+
+                # Маппинг названия отдела к правильному регистру из данных
+                dept_mapping = {
+                    'hr': 'HR',
+                    'sales': 'Sales',
+                    'engineering': 'Engineering',
+                    'marketing': 'Marketing',
+                    'finance': 'Finance'
+                }
+
+                dept = dept_mapping.get(dept_input, department_match.group(1).title())
+
+                return f"""
+SELECT
+    '{dept}' AS department,
+    COUNT(*) FILTER (WHERE termination_date IS NOT NULL AND department = '{dept}') AS total_terminations,
+    COUNT(*) FILTER (WHERE department = '{dept}') AS total_employees,
+    ROUND(100.0 * COUNT(*) FILTER (WHERE termination_date IS NOT NULL AND department = '{dept}') / NULLIF(COUNT(*) FILTER (WHERE department = '{dept}'), 0), 1) AS attrition_rate,
+    CEIL(COUNT(*) FILTER (WHERE termination_date IS NOT NULL AND department = '{dept}') * 1.1) AS recommended_hiring_target,
+    ROUND(AVG(CASE WHEN termination_date IS NOT NULL AND department = '{dept}' THEN service ELSE NULL END), 1) AS avg_tenure_terminated
 FROM hr_data
 WHERE department = '{dept}';
 """
 
-    # 2. Доля категорий людей уволившихся по возрасту и сервису
+    # Приоритет 2: Доля категорий людей уволившихся по возрасту и сервису
     elif ('дол' in text_lower or 'какого' in text_lower) and ('возраст' in text_lower or 'категори' in text_lower) and 'сервис' in text_lower:
         # Выделяем номер сервиса
         service_match = re.search(r'сервис[e]? (\d+)', text_lower)
@@ -83,24 +106,22 @@ GROUP BY age_group
 ORDER BY service_percentage DESC;
 """
 
-    # 3. Сколько необходимо нанимать для покрытия оттока в отделе
-    elif ('нанимать' in text_lower or 'покрыть' in text_lower) and ('отдел' in text_lower or 'месяц' in text_lower):
+    # Приоритет 3: Текучесть в отделе N за прошлый год
+    elif ('текуч' in text_lower or 'текучесть' in text_lower) and 'отдел' in text_lower:
+        # Выделяем название отдела
         department_match = re.search(r'отдел[e]? (\w+)', text_lower)
         if department_match:
             dept = department_match.group(1).title()
             return f"""
-SELECT
-    '{dept}' AS department,
+SELECT '{dept}' AS department,
     COUNT(*) FILTER (WHERE termination_date IS NOT NULL) AS total_terminations,
     COUNT(*) AS total_employees,
-    ROUND(100.0 * COUNT(*) FILTER (WHERE termination_date IS NOT NULL) / NULLIF(COUNT(*), 0), 1) AS attrition_rate,
-    CEIL(COUNT(*) FILTER (WHERE termination_date IS NOT NULL) * 1.1) AS recommended_hiring_target,
-    ROUND(AVG(CASE WHEN termination_date IS NOT NULL THEN service ELSE NULL END), 1) AS avg_tenure_terminated
+    ROUND(100.0 * COUNT(*) FILTER (WHERE termination_date IS NOT NULL) / NULLIF(COUNT(*), 0), 2) AS attrition_rate
 FROM hr_data
 WHERE department = '{dept}';
 """
 
-    # 4. Общая текучесть за прошлый год
+    # Приоритет 4: Общая текучесть за прошлый год
     elif ('текуч' in text_lower or 'текучесть' in text_lower) and ('прошл' in text_lower or 'год' in text_lower):
         return """
 SELECT
@@ -112,5 +133,6 @@ FROM hr_data
 WHERE strftime('%Y', hire_date) <= '2024';
 """
 
-    # Default fallback
+    # Добавим еще один fallback, но более правильный - если не попал ни в один паттерн
+    print(f"DEBUG: No pattern matched for: {text_lower}")
     return "SELECT * FROM hr_data LIMIT 20;"
