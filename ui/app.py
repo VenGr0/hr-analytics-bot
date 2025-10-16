@@ -7,7 +7,7 @@ import os
 st.title("HR Analytics Bot — HR Insight")
 
 # Upload CSV
-uploaded_file = st.file_uploader("Upload HR Data CSV", type="csv")
+uploaded_file = st.file_uploader("Загрузить CSV файл с данными HR", type="csv")
 data_path = None
 if uploaded_file:
     data_path = f"data/{uploaded_file.name}"
@@ -15,31 +15,31 @@ if uploaded_file:
         os.makedirs("data")
     with open(data_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
-    st.success(f"File uploaded: {data_path}")
+    st.success(f"Файл загружен: {data_path}")
 
 # Load sample data for demo
 sample_path = "data/sample.csv"
 if os.path.exists(sample_path):
-    if st.button("Load Sample Data"):
+    if st.button("Загрузить пример данных"):
         data_path = sample_path
-        st.success("Sample data loaded")
+        st.success("Пример данных загружен")
 
 # Natural Language Query
-nl_query = st.text_input("Enter your HR analytics question:")
+nl_query = st.text_input("Введите ваш вопрос по HR аналитике:")
 
-if st.button("Ask Bot", key="ask"):
+if st.button("Спросить бота", key="ask"):
     if nl_query and data_path:
         payload = {"text": nl_query, "dataset_path": data_path}
         try:
             response = requests.post("http://localhost:8000/nlquery", json=payload)
             if response.status_code == 200:
                 data = response.json()
-                st.write("**Generated SQL:**")
+                st.write("**Сгенерированный SQL:**")
                 st.code(data['sql'], language='sql')
                 df = pd.DataFrame(data['rows'])
 
                 if df.empty:
-                    st.warning("No data returned from query")
+                    st.warning("Данные по запросу не найдены")
                 else:
                     st.dataframe(df)
 
@@ -71,34 +71,27 @@ if st.button("Ask Bot", key="ask"):
                         st.plotly_chart(fig2)
 
                     elif 'recommended_hiring_target' in df.columns:
-                        # Рекомендации по найму
-                        st.write("### 📋 Hiring Recommendations")
+                        # Рекомендации по найму для конкретного отдела
+                        dept_name = df.get('department', ['Unknown'])[0]
+                        st.write(f"### 📋 Рекомендации по найму для отдела {dept_name}")
                         for index, row in df.iterrows():
                             col1, col2 = st.columns(2)
                             with col1:
-                                st.metric("🗑️ Total Terminations", f"{int(row.get('total_terminations', 0))}")
-                                st.metric("👥 Total Employees", f"{int(row.get('total_employees', 0))}")
+                                st.metric("🗑️ Всего увольнений", f"{int(row.get('total_terminations', 0))}")
+                                st.metric("👥 Всего сотрудников", f"{int(row.get('total_employees', 0))}!")
                             with col2:
                                 rate = round(row.get('attrition_rate', 0), 1) if row.get('attrition_rate') else 'N/A'
-                                st.metric("📊 Attrition Rate", f"{rate}%")
-                                st.metric("🎯 Recommended Hiring Target", f"{int(row.get('recommended_hiring_target', 0))} employees")
+                                st.metric("📊 Коэффициент текучести", f"{rate}%")
+                                st.metric("🎯 Рекомендуемый план найма", f"{int(row.get('recommended_hiring_target', 0))} человек")
 
-                    # Общий insight
-                    if len(df) > 0:
-                        st.write("---")
-                        st.write("### Insights:")
-                        if 'attrition_rate' in df.columns:
-                            max_rate = df['attrition_rate'].max()
-                            st.write(f"🔍 Maximum attrition rate observed: {max_rate}%")
-                        elif 'service_percentage' in df.columns:
-                            top_group = df.loc[df['service_percentage'].idxmax()]['age_group']
-                            st.write(f"👥 Age group with highest service percentage: {top_group}")
-                        elif 'recommended_hiring_target' in df.columns:
+                        # Show only hiring insights for hiring queries
+                        if 'recommended_hiring_target' in df.columns:
                             target = int(df['recommended_hiring_target'].iloc[0])
-                            st.write(f"💼 Recommended monthly target for new hires: {target} employees")
+                            st.write("---")
+                            st.write(f"💼 **Рекомендуемая месячная цель найма: {target} сотрудников**")
             else:
-                st.error(f"API Error: {response.text}")
+                st.error(f"Ошибка API: {response.text}")
         except Exception as e:
-            st.error(f"Connection Error: {str(e)}")
+            st.error(f"Ошибка подключения: {str(e)}")
     else:
-        st.warning("Please upload a CSV file or load sample data, and enter a question.")
+        st.warning("Пожалуйста, загрузите CSV файл или пример данных и введите вопрос.")
