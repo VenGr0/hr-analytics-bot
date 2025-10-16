@@ -1,0 +1,6 @@
+employee_id,hire_date,termination_date,department,service,age,position,gender,salary,location,status
+1,2020-01-15,,Sales,4,28,Senior Manager,M,80000,Moscow,Active
+2,2019-03-10,2024-05-20,HR,5,32,HR Specialist,F,60000,Saint Petersburg,Terminated
+3,2021-07-22,,Engineering,3,25,Developer,M,70000,Moscow,Active
+4,2018-11-05,,Marketing,6,35,Marketing Lead,F,75000,Kazan,Active
+5,2022-02-14,2024-09-10,Sales,2,27,Sales Rep,M,50000,Moscow,Terminated
